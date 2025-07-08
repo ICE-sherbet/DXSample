@@ -1,0 +1,116 @@
+{
+  "bindings": [
+    
+    { "kind":"AnalogToAxis", "virtual":"Look.X", "axis":"MDX",
+      "scale": 1, "device": 1 },
+
+    { "kind":"AnalogToAxis", "virtual":"Look.Y", "axis":"MDY",
+      "scale": 1, "device": 1 },
+    {
+      "kind": "DigitalToAxis",
+      "virtual": "Move.X",
+      "key": "KeyA",
+      "scale": -1,
+      "device": 0
+    },
+    {
+      "kind": "DigitalToAxis",
+      "virtual": "Move.X",
+      "key": "KeyD",
+      "scale": 1,
+      "device": 0
+    },
+    {
+      "kind": "DigitalToAxis",
+      "virtual": "Move.Y",
+      "key": "KeyS",
+      "scale": -1,
+      "device": 0
+    },
+    {
+      "kind": "DigitalToAxis",
+      "virtual": "Move.Y",
+      "key": "KeyW",
+      "scale": 1,
+      "device": 0
+    },
+    {
+      "kind": "AnalogToAxis",
+      "virtual": "Move.X",
+      "axis": "LX",
+      "scale": 1,
+      "device": 2
+    },
+    {
+      "kind": "AnalogToAxis",
+      "virtual": "Move.Y",
+      "axis": "LY",
+      "scale": 1,
+      "device": 2
+    },
+    {
+      "kind": "AnalogToAxis",
+      "virtual": "Look.X",
+      "axis": "RX",
+      "scale": 1,
+      "device": 2
+    },
+    {
+      "kind": "AnalogToAxis",
+      "virtual": "Look.Y",
+      "axis": "RY",
+      "scale": 1,
+      "device": 2
+    },
+    {
+      "kind": "DigitalToAction",
+      "virtual": "Jump",
+      "key": "Space",
+      "device": 0
+    },
+    {
+      "kind": "DigitalToAction",
+      "virtual": "Jump",
+      "key": "PadA0",
+      "device": 2
+    },
+    {
+      "kind": "AnalogToAction",
+      "virtual": "Shoot",
+      "axis": "RT",
+      "threshold": 0.35,
+      "device": 2
+    },
+    {
+      "kind": "DigitalToAction",
+      "virtual": "Shoot",
+      "key": "LMouse",
+      "device": 1
+    },
+    {
+      "kind": "ChordToAction",
+      "virtual": "Save",
+      "keys": ["Ctrl", "KeyS"],
+      "device": 0
+    },
+    {
+      "kind": "SequenceToAction",
+      "virtual": "GridToggle",
+      "keys": ["KeyG", "KeyG"],
+      "maxGapFrames": 12,
+      "device": 0
+    }
+  ],
+  "composites": {
+    "Move": {"x": "Move.X", "y": "Move.Y"},
+    "Look": {"x": "Look.X", "y": "Look.Y"}
+  },
+  "deadzone": {
+    "LX": 0.15,
+    "LY": 0.15,
+    "RX": 0.10,
+    "RY": 0.10
+  },
+  "latchReleaseFrames": 8,
+  "accelThreshold": 0.02
+}
