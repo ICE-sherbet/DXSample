@@ -10,13 +10,10 @@
 
 namespace base {
 
-// ───────────────────────────────────────────────────────────────
-//  1.  Runtime value containers
-// ───────────────────────────────────────────────────────────────
-struct Vec2 {
+struct Float2 {
   float x = 0, y = 0;
 };
-inline Vec2 clamp1(Vec2 v) {
+inline Float2 clamp1(Float2 v) {
   float len = v.x * v.x + v.y * v.y;
   if (len > 1.f) {
     len = std::sqrt(len);
@@ -44,36 +41,31 @@ struct SeqState {
   int lastFrame = -99999;
 };
 
-// ───────────────────────────────────────────────────────────────
 class VirtualInput {
  public:
-  explicit VirtualInput(const Config& cfg) : cfg_(cfg) {}
+  explicit VirtualInput(const InputConfig& cfg) : cfg_(cfg) {}
 
-  //---------------- frame API ----------------
-  void beginFrame();
-  void applySnapshot(const Snapshot& snap);  // main work
-  void endFrame();
+  void BeginFrame();
+  void ApplySnapshot(const InputSnapshot& snap);
+  void EndFrame();
 
-  //---------------- query API ----------------
-  float getAxis(std::string_view n) const {
+  float GetAxis(std::string_view n) const {
     return axes_.at(std::string(n)).value;
   }
-  Vec2 getVector2(std::string_view n) const;
-  const Action& getAction(std::string_view n) const {
+  Float2 GetVector2(std::string_view n) const;
+  const Action& GetAction(std::string_view n) const {
     return actions_.at(std::string(n));
   }
 
  private:
-  //---------------- helpers ------------------
-  void handleBinding(const Binding&, const Snapshot&);
-  void updAxis(const Binding&, float raw, int frame);
-  void updActionDigital(const Binding&, bool down);
-  void updActionAnalog(const Binding&, float raw);
-  void updChord(const Binding&, const Snapshot&, int frame);
-  void updSequence(const Binding&, const Snapshot&, int frame);
+  void HandleBinding(const InputBinding&, const InputSnapshot&);
+  void UpdateAxis(const InputBinding&, float raw, int frame);
+  void UpdateActionDigital(const InputBinding&, bool down);
+  void UpdateActionAnalog(const InputBinding&, float raw);
+  void UpdateChord(const InputBinding&, const InputSnapshot&, int frame);
+  void UpdateSequence(const InputBinding&, const InputSnapshot&, int frame);
 
-  //-------------------------------------------
-  const Config& cfg_;
+  const InputConfig& cfg_;
   int frame_ = 0;
 
   std::unordered_map<std::string, Axis> axes_;
@@ -82,72 +74,65 @@ class VirtualInput {
   std::unordered_map<std::string, SeqState> seq_;
 };
 
-// ───────────────────────────────────────────────────────────────
-//  2.  Implementation
-// ───────────────────────────────────────────────────────────────
-inline void VirtualInput::beginFrame() {
+void VirtualInput::BeginFrame() {
   for (auto& [_, ax] : axes_) ax.value = 0;
   for (auto& [_, ac] : actions_) {
     ac.pressed = ac.released = false;
   }
 }
 
-inline void VirtualInput::applySnapshot(const Snapshot& snap) {
+void VirtualInput::ApplySnapshot(const InputSnapshot& snap) {
   frame_ = snap.frame;
-  for (const Binding& b : cfg_.bindings) handleBinding(b, snap);
+  for (const InputBinding& b : cfg_.bindings) HandleBinding(b, snap);
 
-  // clamp axes
   for (auto& [_, ax] : axes_) ax.value = std::clamp(ax.value, -1.f, 1.f);
 }
 
-inline void VirtualInput::endFrame() {}
+inline void VirtualInput::EndFrame() {}
 
-//------------------------------ vector -------------------------
-inline Vec2 VirtualInput::getVector2(std::string_view n) const {
+inline Float2 VirtualInput::GetVector2(std::string_view n) const {
   auto it = cfg_.composites.find(std::string(n));
   if (it == cfg_.composites.end()) return {};
-  const Composite& c = it->second;
-  Vec2 v;
+  const InputComposite& c = it->second;
+  Float2 v;
   if (c.x) v.x = axes_.at(*c.x).value;
   if (c.y) v.y = axes_.at(*c.y).value;
   return clamp1(v);
 }
 
-//---------------------- dispatcher -----------------------------
-inline void VirtualInput::handleBinding(const Binding& b,
-                                        const Snapshot& snap) {
+inline void VirtualInput::HandleBinding(const InputBinding& b,
+                                        const InputSnapshot& snap) {
   switch (b.kind) {
-    case Binding::Kind::DigitalToAxis: {
+    case InputBinding::Kind::DigitalToAxis: {
       bool d = snap.down.test(static_cast<size_t>(b.keys[0]));
-      updAxis(b, d ? b.scale : 0.f, frame_);
+      UpdateAxis(b, d ? b.scale : 0.f, frame_);
       break;
     }
-    case Binding::Kind::AnalogToAxis: {
+    case InputBinding::Kind::AnalogToAxis: {
       float raw = snap.axes[(size_t)*b.axis] * b.scale;
-      updAxis(b, raw, frame_);
+      UpdateAxis(b, raw, frame_);
       break;
     }
-    case Binding::Kind::DigitalToAction: {
+    case InputBinding::Kind::DigitalToAction: {
       bool d = snap.down.test(static_cast<size_t>(b.keys[0]));
-      updActionDigital(b, d);
+      UpdateActionDigital(b, d);
       break;
     }
-    case Binding::Kind::AnalogToAction: {
+    case InputBinding::Kind::AnalogToAction: {
       float r = snap.axes[(size_t)*b.axis] * b.scale;
-      updActionAnalog(b, r);
+      UpdateActionAnalog(b, r);
       break;
     }
-    case Binding::Kind::ChordToAction:
-      updChord(b, snap, frame_);
+    case InputBinding::Kind::ChordToAction:
+      UpdateChord(b, snap, frame_);
       break;
-    case Binding::Kind::SequenceToAction:
-      updSequence(b, snap, frame_);
+    case InputBinding::Kind::SequenceToAction:
+      UpdateSequence(b, snap, frame_);
       break;
   }
 }
 
-//---------------- Axis update w/ latch -------------------------
-inline void VirtualInput::updAxis(const Binding& b, float raw, int frame) {
+inline void VirtualInput::UpdateAxis(const InputBinding& b, float raw, int frame) {
   Axis& ax = axes_[b.virtualName];
   float dz = 0.f;
   if (b.axis && cfg_.deadzone.contains(*b.axis)) dz = cfg_.deadzone.at(*b.axis);
@@ -172,8 +157,7 @@ inline void VirtualInput::updAxis(const Binding& b, float raw, int frame) {
   ax.prevRaw = ax.value;
 }
 
-//-------------- Digital / Analog Action -----------------------
-inline void VirtualInput::updActionDigital(const Binding& b, bool down) {
+inline void VirtualInput::UpdateActionDigital(const InputBinding& b, bool down) {
   Action& a = actions_[b.virtualName];
   if (a.dev == UINT32_MAX && down) a.dev = b.device;
   if (a.dev != b.device) return;
@@ -182,13 +166,12 @@ inline void VirtualInput::updActionDigital(const Binding& b, bool down) {
   a.down = down;
   if (!down) a.dev = UINT32_MAX;
 }
-inline void VirtualInput::updActionAnalog(const Binding& b, float raw) {
+inline void VirtualInput::UpdateActionAnalog(const InputBinding& b, float raw) {
   bool down = raw >= b.threshold;
-  updActionDigital(b, down);
+  UpdateActionDigital(b, down);
 }
 
-//-------------- Chord -----------------------------------------
-void VirtualInput::updChord(const Binding& b, const Snapshot& s, int f) {
+void VirtualInput::UpdateChord(const InputBinding& b, const InputSnapshot& s, int f) {
   auto& st = chord_[b.virtualName];
   bool allDown = true;
   for (PKey k : b.keys) allDown &= s.down.test(static_cast<size_t>(k));
@@ -205,13 +188,12 @@ void VirtualInput::updChord(const Binding& b, const Snapshot& s, int f) {
   }
 }
 
-//-------------- Sequence --------------------------------------
-inline void VirtualInput::updSequence(const Binding& b, const Snapshot& s,
+inline void VirtualInput::UpdateSequence(const InputBinding& b, const InputSnapshot& s,
                                       int f) {
   auto& st = seq_[b.virtualName];
   if (!s.pressed.test(static_cast<size_t>(b.keys[st.idx]))) return;
 
-  if (f - st.lastFrame > b.maxGapFrames) st.idx = 0;  // タイムアウト
+  if (f - st.lastFrame > b.maxGapFrames) st.idx = 0;
   ++st.idx;
   st.lastFrame = f;
 
@@ -222,4 +204,4 @@ inline void VirtualInput::updSequence(const Binding& b, const Snapshot& s,
   }
 }
 
-}  // namespace in
+}

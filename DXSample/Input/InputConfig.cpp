@@ -4,8 +4,9 @@
 #include <fstream>
 
 namespace base {
-//---------------------------------------------------------------
-PKey keyFromString(std::string_view s) {
+
+// TODO: ハッシュを使うなど高速な検索を実装する
+PKey KeyFromString(std::string_view s) {
   if (s[0] == 'K' && std::isalpha(s[3]))
     return static_cast<PKey>(std::toupper(s[3]));
   if (s == "Space") return PKey::Space;
@@ -15,7 +16,7 @@ PKey keyFromString(std::string_view s) {
 
   return PKey::None;
 }
-PAxis axisFromString(std::string_view s) {
+PAxis AxisFromString(std::string_view s) {
   if (s == "LX") return PAxis::LX;
   if (s == "LY") return PAxis::LY;
   if (s == "MouseX") return PAxis::MouseX;
@@ -24,12 +25,10 @@ PAxis axisFromString(std::string_view s) {
   if (s == "MDY") return PAxis::MDY;
   if (s == "RT") return PAxis::RT;
 
-  /* …追加 … */
   return PAxis::MouseX;
 }
 
-//---------------------------------------------------------------
-bool Config::load(const std::filesystem::path& fp, std::string* err) {
+bool InputConfig::Load(const std::filesystem::path& fp, std::string* err) {
   std::ifstream ifs(fp);
   if (!ifs) {
     if (err) *err = "file open fail";
@@ -44,12 +43,11 @@ bool Config::load(const std::filesystem::path& fp, std::string* err) {
   composites.clear();
   deadzone.clear();
 
-  //------------ bindings -------------------------------------
-  for (auto& jb : j["bindings"]) {
-    Binding b;
-    const std::string kind = jb["kind"];
+  for (auto& jbindings : j["bindings"]) {
+    InputBinding b;
+    const std::string kind = jbindings["kind"];
 #define KIND(s, e) \
-  if (kind == s) b.kind = Binding::Kind::e
+  if (kind == s) b.kind = InputBinding::Kind::e
     KIND("DigitalToAxis", DigitalToAxis);
     else KIND("DigitalToAction", DigitalToAction);
     else KIND("AnalogToAxis", AnalogToAxis);
@@ -61,42 +59,40 @@ bool Config::load(const std::filesystem::path& fp, std::string* err) {
       return false;
     }
 
-    b.virtualName = jb["virtual"].get<std::string>();
-    b.scale = jb.value("scale", 1.f);
-    b.device = jb.value("device", DEV_KEYBD);
+    b.virtualName = jbindings["virtual"].get<std::string>();
+    b.scale = jbindings.value("scale", 1.f);
+    b.device = jbindings.value("device", DEVICE_KEYBD);
 
-    if (jb.contains("axis"))
-      b.axis = axisFromString(jb["axis"].get<std::string>());
+    if (jbindings.contains("axis"))
+      b.axis = AxisFromString(jbindings["axis"].get<std::string>());
 
-    if (jb.contains("key"))
-      b.keys.push_back(keyFromString(jb["key"].get<std::string>()));
-    if (jb.contains("keys"))
-      for (auto& k : jb["keys"])
-        b.keys.push_back(keyFromString(k.get<std::string>()));
+    if (jbindings.contains("key"))
+      b.keys.push_back(KeyFromString(jbindings["key"].get<std::string>()));
+    if (jbindings.contains("keys"))
+      for (auto& k : jbindings["keys"])
+        b.keys.push_back(KeyFromString(k.get<std::string>()));
 
-    b.threshold = jb.value("threshold", 0.25f);
-    b.maxGapFrames = jb.value("maxGapFrames", 12);
+    b.threshold = jbindings.value("threshold", 0.25f);
+    b.maxGapFrames = jbindings.value("maxGapFrames", 12);
 
     bindings.emplace_back(std::move(b));
   }
 
-  //------------ composites -----------------------------------
   if (j.contains("composites"))
     for (auto& [name, obj] : j["composites"].items()) {
-      Composite c;
+      InputComposite c;
       if (obj.contains("x")) c.x = obj["x"].get<std::string>();
       if (obj.contains("y")) c.y = obj["y"].get<std::string>();
       if (obj.contains("z")) c.z = obj["z"].get<std::string>();
       composites.emplace(name, std::move(c));
     }
 
-  //------------ misc -----------------------------------------
   if (j.contains("deadzone"))
     for (auto& [k, v] : j["deadzone"].items())
-      deadzone[axisFromString(k)] = v.get<float>();
+      deadzone[AxisFromString(k)] = v.get<float>();
 
   latchReleaseFrames = j.value("latchReleaseFrames", 8);
   accelThreshold = j.value("accelThreshold", 0.02f);
   return true;
 }
-}  // namespace base
+}

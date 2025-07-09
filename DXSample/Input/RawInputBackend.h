@@ -10,7 +10,6 @@
 
 namespace base {
 
-// ── 物理 ID ────────────────────────────────────────────────
 enum class PKey : uint16_t {
   None = 0x00,  // 仮想キー 0x00 は未使用
 
@@ -134,8 +133,7 @@ enum class PKey : uint16_t {
   LAlt = VK_LMENU,
   RAlt = VK_RMENU,
 
-  /* マウス拡張ボタン（仮想キー扱いにする） */
-  MouseLeft = 0x100,  // 0x100 以降はアプリ固有領域
+  MouseLeft = 0x100,
   MouseRight = 0x101,
   MouseMiddle = 0x102,
 
@@ -157,14 +155,13 @@ enum class PAxis : uint16_t {
 };
 
 using DeviceId = uint32_t;
-constexpr DeviceId DEV_KEYBD = 1;
-constexpr DeviceId DEV_MOUSE = 2;
-constexpr DeviceId DEV_PAD0 = 4;
+constexpr DeviceId DEVICE_KEYBD = 1;
+constexpr DeviceId DEVICE_MOUSE = 2;
+constexpr DeviceId DEVICE_PAD0 = 4;
 
-// ── Raw → スナップショット用構造 ───────────────────────────
-struct Snapshot {
-  std::bitset<static_cast<size_t>(PKey::Count)> down;     // 仮想キー 0-255
-  std::bitset<static_cast<size_t>(PKey::Count)> pressed;  // 仮想キー 0-255
+struct InputSnapshot {
+  std::bitset<static_cast<size_t>(PKey::Count)> down;
+  std::bitset<static_cast<size_t>(PKey::Count)> pressed;
   uint8_t mouseBtn = 0;   // bit0=L, bit1=R, bit2=M
   float axes[static_cast<size_t>(PAxis::Count)]{};
   uint32_t frame = 0;
@@ -174,22 +171,20 @@ class RawInputBackend {
  public:
   RawInputBackend(HWND hwnd);
 
-  LRESULT handleMsg(UINT msg, WPARAM wp, LPARAM lp);
+  LRESULT HandleMsg(UINT msg, WPARAM wp, LPARAM lp);
 
-  const Snapshot& acquire();
+  const InputSnapshot& GetCurrentSnapshot();
   void BeginFrame();
 
  private:
-  void registerDevices(HWND hwnd);
-  void processRaw(const RAWINPUT& ri);
+  void RegisterDevices(HWND hwnd);
+  void ProcessRaw(const RAWINPUT& ri);
 
-  Snapshot buffers_[2]{};
+  InputSnapshot buffers_[2]{};
   std::atomic<uint32_t> writeIdx_{0};
   uint32_t frameCounter_ = 0;
 
-  void updateXInput(Snapshot& dst);
-  static float normThumb(SHORT v);
-  static float normTrig(BYTE v);
+  void UpdateXInput(InputSnapshot& dst);
 };
 
-}  // namespace in
+}

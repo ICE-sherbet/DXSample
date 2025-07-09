@@ -23,9 +23,9 @@ static PKey Unify(PKey pk) {
       return pk;
   }
 }
-RawInputBackend::RawInputBackend(HWND hwnd) { registerDevices(hwnd); }
+RawInputBackend::RawInputBackend(HWND hwnd) { RegisterDevices(hwnd); }
 
-LRESULT RawInputBackend::handleMsg(UINT msg, WPARAM wp, LPARAM lp) {
+LRESULT RawInputBackend::HandleMsg(UINT msg, WPARAM wp, LPARAM lp) {
   if (msg == WM_INPUT) {
     UINT sz = 0;
     ::GetRawInputData(reinterpret_cast<HRAWINPUT>(lp), RID_INPUT, nullptr, &sz,
@@ -34,14 +34,14 @@ LRESULT RawInputBackend::handleMsg(UINT msg, WPARAM wp, LPARAM lp) {
     if (::GetRawInputData(reinterpret_cast<HRAWINPUT>(lp), RID_INPUT,
                           buf.data(), &sz, sizeof(RAWINPUTHEADER)) == sz) {
       const RAWINPUT& ri = *reinterpret_cast<RAWINPUT*>(buf.data());
-      processRaw(ri);
+      ProcessRaw(ri);
     }
     return 0;
   }
   return DefWindowProc(nullptr, msg, wp, lp);
 }
 
-void RawInputBackend::registerDevices(HWND hwnd) {
+void RawInputBackend::RegisterDevices(HWND hwnd) {
   RAWINPUTDEVICE rid[2]{};
 
   rid[0].usUsagePage = 0x01;
@@ -59,8 +59,8 @@ void RawInputBackend::registerDevices(HWND hwnd) {
   }
 }
 
-void RawInputBackend::processRaw(const RAWINPUT& ri) {
-  Snapshot& wr = buffers_[0];
+void RawInputBackend::ProcessRaw(const RAWINPUT& ri) {
+  InputSnapshot& wr = buffers_[0];
 
   switch (ri.header.dwType) {
     case RIM_TYPEKEYBOARD: {
@@ -94,37 +94,37 @@ void RawInputBackend::processRaw(const RAWINPUT& ri) {
   }
 }
 
-const Snapshot& RawInputBackend::acquire() {
-  Snapshot& wr = buffers_[0];
-  updateXInput(wr);
+const InputSnapshot& RawInputBackend::GetCurrentSnapshot() {
+  InputSnapshot& wr = buffers_[0];
+  UpdateXInput(wr);
 
   wr.frame = ++frameCounter_;
-  writeIdx_.store(1 - writeIdx_, std::memory_order_release);
 
   return buffers_[0];
 }
 void RawInputBackend::BeginFrame() {
-  Snapshot& wr = buffers_[0];
+  InputSnapshot& wr = buffers_[0];
   wr.axes[(size_t)PAxis::MDX] = 0;
   wr.axes[(size_t)PAxis::MDY] = 0;
 }
-void RawInputBackend::updateXInput(Snapshot& dst) {
+
+
+// TODO: デッドゾーンなどの値がべた書き
+float NormThumb(SHORT v) { return (std::fabs(v) < 7849) ? 0.f : v / 32768.f; }
+float NormTrig(BYTE v) { return (v < 30) ? 0.f : v / 255.f; }
+
+void RawInputBackend::UpdateXInput(InputSnapshot& dst) {
   XINPUT_STATE xi{};
   if (XInputGetState(0, &xi) == ERROR_SUCCESS) {
     auto& g = xi.Gamepad;
     dst.down.set(VK_PAD_A, g.wButtons & XINPUT_GAMEPAD_A);
     dst.down.set(VK_PAD_B, g.wButtons & XINPUT_GAMEPAD_B);
 
-    dst.axes[(size_t)PAxis::LX] = normThumb(g.sThumbLX);
-    dst.axes[(size_t)PAxis::LY] = -normThumb(g.sThumbLY);
-    dst.axes[(size_t)PAxis::RX] = normThumb(g.sThumbRX);
-    dst.axes[(size_t)PAxis::RY] = -normThumb(g.sThumbRY);
-    dst.axes[(size_t)PAxis::LT] = normTrig(g.bLeftTrigger);
-    dst.axes[(size_t)PAxis::RT] = normTrig(g.bRightTrigger);
+    dst.axes[(size_t)PAxis::LX] = NormThumb(g.sThumbLX);
+    dst.axes[(size_t)PAxis::LY] = -NormThumb(g.sThumbLY);
+    dst.axes[(size_t)PAxis::RX] = NormThumb(g.sThumbRX);
+    dst.axes[(size_t)PAxis::RY] = -NormThumb(g.sThumbRY);
+    dst.axes[(size_t)PAxis::LT] = NormTrig(g.bLeftTrigger);
+    dst.axes[(size_t)PAxis::RT] = NormTrig(g.bRightTrigger);
   }
 }
-
-float RawInputBackend::normThumb(SHORT v) {
-  return (std::fabs(v) < 7849) ? 0.f : v / 32768.f;
-}
-float RawInputBackend::normTrig(BYTE v) { return (v < 30) ? 0.f : v / 255.f; }
